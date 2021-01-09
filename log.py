@@ -1,70 +1,86 @@
 #!/usr/bin/env python3
-"""hourglass-habit — track study hours by subject (exam prep)."""
+"""hourglass-habit — log daily study/work hours by subject."""
+from __future__ import annotations
 
-from __future__ import print_function
-import json, os, sys
+import argparse
+import csv
+import os
+from collections import defaultdict
 from datetime import date
 
-LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "study_log.json")
+HERE = os.path.dirname(os.path.abspath(__file__))
+LOG = os.environ.get("HOURGLASS_LOG", os.path.join(HERE, "hours.csv"))
 
-def load():
-    if not os.path.isfile(LOG):
-        return []
-    with open(LOG, "r") as f:
-        return json.load(f)
 
-def save(rows):
-    with open(LOG, "w") as f:
-        json.dump(rows, f, indent=2)
+def ensure_log() -> None:
+    if not os.path.exists(LOG):
+        with open(LOG, "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(["date", "subject", "hours", "note"])
 
-def add(subject, hours, note=""):
-    rows = load()
-    rows.append({
-        "date": date.today().isoformat(),
-        "subject": subject.lower(),
-        "hours": float(hours),
-        "note": note,
-    })
-    save(rows)
-    print("logged %.1fh of %s" % (float(hours), subject))
 
-def summary():
-    rows = load()
-    if not rows:
-        print("no data — the void stares back")
-        return
-    totals = {}
+def add(subject: str, hours: float, note: str, day: str | None) -> None:
+    ensure_log()
+    day = day or date.today().isoformat()
+    with open(LOG, "a", newline="", encoding="utf-8") as fh:
+        csv.writer(fh).writerow([day, subject, f"{hours:g}", note])
+    print(f"logged {hours:g}h on {subject} ({day})")
+
+
+def read_rows():
+    ensure_log()
+    with open(LOG, newline="", encoding="utf-8") as fh:
+        return list(csv.DictReader(fh))
+
+
+def summary() -> None:
+    rows = read_rows()
+    totals = defaultdict(float)
     for r in rows:
-        totals[r["subject"]] = totals.get(r["subject"], 0.0) + r["hours"]
-    print("=== lifetime hours ===")
-    for k in sorted(totals, key=totals.get, reverse=True):
-        print("  %-12s %5.1f" % (k, totals[k]))
-    print("  total        %5.1f" % sum(totals.values()))
-
-def today():
-    rows = [r for r in load() if r["date"] == date.today().isoformat()]
-    if not rows:
-        print("nothing logged today. suspicious.")
+        totals[r["subject"]] += float(r["hours"])
+    if not totals:
+        print("(no entries)")
         return
-    s = sum(r["hours"] for r in rows)
-    print("today: %.1fh across %d entries" % (s, len(rows)))
-    for r in rows:
-        print("  - %s %.1fh %s" % (r["subject"], r["hours"], r.get("note") or ""))
+    print(f"{'subject':<16} hours")
+    for sub, hrs in sorted(totals.items(), key=lambda x: -x[1]):
+        print(f"{sub:<16} {hrs:g}")
+    print(f"{'TOTAL':<16} {sum(totals.values()):g}")
 
-def main(argv):
-    if not argv:
-        print("usage: add SUBJECT HOURS [note...] | summary | today")
-        return 1
-    if argv[0] == "add" and len(argv) >= 3:
-        add(argv[1], argv[2], " ".join(argv[3:]))
-    elif argv[0] == "summary":
+
+def today() -> None:
+    day = date.today().isoformat()
+    rows = [r for r in read_rows() if r["date"] == day]
+    if not rows:
+        print(f"(nothing logged on {day})")
+        return
+    total = 0.0
+    for r in rows:
+        h = float(r["hours"])
+        total += h
+        note = f" — {r['note']}" if r.get("note") else ""
+        print(f"{r['subject']:<16} {h:g}h{note}")
+    print(f"{'TOTAL':<16} {total:g}h")
+
+
+def main() -> int:
+    p = argparse.ArgumentParser()
+    sub = p.add_subparsers(dest="cmd", required=True)
+    a = sub.add_parser("add")
+    a.add_argument("subject")
+    a.add_argument("hours", type=float)
+    a.add_argument("note", nargs="?", default="")
+    a.add_argument("--date", dest="day", default=None)
+    sub.add_parser("summary")
+    sub.add_parser("today")
+    args = p.parse_args()
+    if args.cmd == "add":
+        add(args.subject, args.hours, args.note, args.day)
+    elif args.cmd == "summary":
         summary()
-    elif argv[0] == "today":
+    elif args.cmd == "today":
         today()
-    else:
-        print("unknown command")
-        return 1
     return 0
 
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    raise SystemExit(main())
