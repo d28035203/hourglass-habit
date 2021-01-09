@@ -7,18 +7,15 @@ from datetime import date
 
 LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "study_log.json")
 
-
 def load():
     if not os.path.isfile(LOG):
         return []
     with open(LOG, "r") as f:
         return json.load(f)
 
-
 def save(rows):
     with open(LOG, "w") as f:
         json.dump(rows, f, indent=2)
-
 
 def add(subject, hours, note=""):
     rows = load()
@@ -30,7 +27,6 @@ def add(subject, hours, note=""):
     })
     save(rows)
     print("logged %.1fh of %s" % (float(hours), subject))
-
 
 def summary():
     rows = load()
@@ -45,7 +41,6 @@ def summary():
         print("  %-12s %5.1f" % (k, totals[k]))
     print("  total        %5.1f" % sum(totals.values()))
 
-
 def today():
     rows = [r for r in load() if r["date"] == date.today().isoformat()]
     if not rows:
@@ -55,7 +50,6 @@ def today():
     print("today: %.1fh across %d entries" % (s, len(rows)))
     for r in rows:
         print("  - %s %.1fh %s" % (r["subject"], r["hours"], r.get("note") or ""))
-
 
 def main(argv):
     if not argv:
@@ -71,7 +65,6 @@ def main(argv):
         print("unknown command")
         return 1
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
