@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""upsc-daily-log — track study hours by subject (UPSC prep)."""
+"""hourglass-habit — track study hours by subject (UPSC prep)."""
 
 from __future__ import print_function
 import json, os, sys
